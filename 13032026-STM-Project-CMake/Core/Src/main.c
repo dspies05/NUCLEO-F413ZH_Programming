@@ -52,10 +52,10 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
-/* Definitions for myCMSISTask */
-osThreadId_t myCMSISTaskHandle;
-const osThreadAttr_t myCMSISTask_attributes = {
-  .name = "myCMSISTask",
+/* Definitions for myTaskTest02 */
+osThreadId_t myTaskTest02Handle;
+const osThreadAttr_t myTaskTest02_attributes = {
+  .name = "myTaskTest02",
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityLow,
 };
@@ -69,7 +69,7 @@ static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_USB_OTG_FS_PCD_Init(void);
 void StartDefaultTask(void *argument);
-void myCMSISTaskFunc(void *argument);
+void StartTaskTest02(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -138,8 +138,8 @@ int main(void)
   /* creation of defaultTask */
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
-  /* creation of myCMSISTask */
-  myCMSISTaskHandle = osThreadNew(myCMSISTaskFunc, NULL, &myCMSISTask_attributes);
+  /* creation of myTaskTest02 */
+  myTaskTest02Handle = osThreadNew(StartTaskTest02, NULL, &myTaskTest02_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
@@ -349,13 +349,7 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void SetPin( int x, int y ) {
-  HAL_GPIO_WritePin(GPIOE, (1<<(y+11)), GPIO_PIN_SET);
-}
 
-void ResetPin( int x, int y ) {
-  HAL_GPIO_WritePin(GPIOE, (1<<(y+11)), GPIO_PIN_RESET);
-}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -376,23 +370,22 @@ void StartDefaultTask(void *argument)
   /* USER CODE END 5 */
 }
 
-/* USER CODE BEGIN Header_myCMSISTaskFunc */
+/* USER CODE BEGIN Header_StartTaskTest02 */
 /**
-* @brief Function implementing the myCMSISTask thread.
+* @brief Function implementing the myTaskTest02 thread.
 * @param argument: Not used
 * @retval None
 */
-/* USER CODE END Header_myCMSISTaskFunc */
-void myCMSISTaskFunc(void *argument)
+/* USER CODE END Header_StartTaskTest02 */
+void StartTaskTest02(void *argument)
 {
-  /* USER CODE BEGIN myCMSISTaskFunc */
+  /* USER CODE BEGIN StartTaskTest02 */
   /* Infinite loop */
   for(;;)
   {
-    LED_green_toggle();
-    osDelay(1000);
+    osDelay(1);
   }
-  /* USER CODE END myCMSISTaskFunc */
+  /* USER CODE END StartTaskTest02 */
 }
 
 /**
