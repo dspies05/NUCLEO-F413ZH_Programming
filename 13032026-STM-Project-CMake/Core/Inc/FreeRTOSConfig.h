@@ -45,6 +45,8 @@
 
 /* USER CODE BEGIN Includes */
 /* Section where include file can be added */
+void SetPin( int x, int y );
+void ResetPin( int x, int y );
 /* USER CODE END Includes */
 
 /* Ensure definitions are only used by the compiler, and not by the assembler. */
@@ -166,6 +168,8 @@ standard names. */
 
 /* USER CODE BEGIN Defines */
 /* Section where parameter definitions can be added (for instance, to override default ones in FreeRTOS.h) */
+#define traceTASK_SWITCHED_IN() SetPin( 0, (int)pxCurrentTCB->pxTaskTag )
+#define traceTASK_SWITCHED_OUT() ResetPin( 0, (int)pxCurrentTCB->pxTaskTag )
 /* USER CODE END Defines */
 
 #endif /* FREERTOS_CONFIG_H */

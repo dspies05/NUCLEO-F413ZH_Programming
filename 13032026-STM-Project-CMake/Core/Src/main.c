@@ -22,7 +22,13 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/_types.h>
+#include "semphr.h"
+#include "stm32f4xx_hal_gpio.h"
+#include "stm32f4xx_hal_uart.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -60,7 +66,13 @@ const osThreadAttr_t myTaskTest02_attributes = {
   .priority = (osPriority_t) osPriorityLow,
 };
 /* USER CODE BEGIN PV */
-
+BaseType_t xReturned;
+TaskHandle_t xHandle = NULL;
+char msg[40];
+SemaphoreHandle_t xSemBlueTurn;
+SemaphoreHandle_t xSemGreenTurn;
+SemaphoreHandle_t xSemButtonPush;
+volatile uint32_t g_lastButtonIrqMs = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -72,7 +84,10 @@ void StartDefaultTask(void *argument);
 void StartTaskTest02(void *argument);
 
 /* USER CODE BEGIN PFP */
-
+void ToggleGreenTask( void * pvParameters );
+void ToggleBlueTask( void * pvParameters );
+void ToggleRedTask( void * pvParameters );
+void BinaryCounterTask(void * pvParameters);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -123,7 +138,33 @@ int main(void)
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
+  xSemGreenTurn = xSemaphoreCreateBinary();
+  xSemBlueTurn = xSemaphoreCreateBinary();
+  xSemButtonPush = xSemaphoreCreateBinary();
+  if( xSemGreenTurn == NULL )
+    {
+        sprintf(msg, "Semaphore failed! \r\n");
+    }
+    else
+    {
+        xSemaphoreGive(xSemGreenTurn);
+    }
+  if( xSemBlueTurn == NULL )
+    {
+        sprintf(msg, "Semaphore failed! \r\n");
+    }
+    else
+    {
+
+    }
+    if( xSemButtonPush == NULL )
+    {
+        sprintf(msg, "Semaphore failed! \r\n");
+    }
+    else
+    {
+
+    }
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -136,15 +177,51 @@ int main(void)
 
   /* Create the thread(s) */
   /* creation of defaultTask */
-  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+  // defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* creation of myTaskTest02 */
-  myTaskTest02Handle = osThreadNew(StartTaskTest02, NULL, &myTaskTest02_attributes);
+  // myTaskTest02Handle = osThreadNew(StartTaskTest02, NULL, &myTaskTest02_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  /* add threads, ... */
-  /* USER CODE END RTOS_THREADS */
+  xReturned = xTaskCreate( BinaryCounterTask, "BinaryCounterTask", 256, NULL, 1, &xHandle);
+  if(xReturned == pdPASS){
+    sprintf(msg, "BinaryCounter erfolgreich erstellt");
+  }
+  else{
+    sprintf(msg, "BinaryCounter FAILED");
+  }
+  HAL_UART_Transmit(&huart3,(uint8_t *) msg, strlen(msg), 1000);
 
+
+  // xReturned = xTaskCreate( ToggleGreenTask, "Task 01", 256, NULL, 1, &xHandle);
+  // if (xReturned == pdPASS){
+	// sprintf(msg, "T1 erfolgreich erstellt! \r\n");
+  // }
+  // else if (xReturned != pdPASS){
+	// sprintf(msg, "T1 NICHT erstellt! \r\n");
+  // }
+  // HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), 1000);
+
+  // xReturned = xTaskCreate( ToggleBlueTask, "Task 02", 256, NULL, 1, &xHandle);
+  // if (xReturned == pdPASS){
+	// sprintf(msg, "T2 erfolgreich erstellt! \r\n");
+  // }
+  // else if (xReturned != pdPASS){
+	// sprintf(msg, "T2 NICHT erstellt! \r\n");
+  // }
+  // HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), 1000);
+
+  // xReturned = xTaskCreate( ToggleRedTask, "Task 03", 256, NULL, 1, &xHandle);
+  // if (xReturned == pdPASS){
+	// sprintf(msg, "T3 erfolgreich erstellt! \r\n");
+  // }
+  // else if (xReturned != pdPASS){
+	// sprintf(msg, "T3 NICHT erstellt! \r\n");
+  // }
+  // HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), 1000);
+
+  /* USER CODE END RTOS_THREADS */
+  
   /* USER CODE BEGIN RTOS_EVENTS */
   /* add events, ... */
   /* USER CODE END RTOS_EVENTS */
@@ -344,12 +421,141 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(USB_OverCurrent_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
-
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
+void ToggleGreenTask( void * pvParameters )
+{
+	vTaskSetApplicationTaskTag( NULL, ( void * ) 1 );
+    for( ;; )
+    {
+      if( xSemGreenTurn != NULL )
+      {
+          // Obtain the semaphore - don't block if the semaphore is not
+          // immediately available.
+          if( xSemaphoreTake( xSemGreenTurn, ( TickType_t ) 1900 ) )
+          {
+              // We now have the semaphore and can access the shared resource.
+              for (int i=0; i<10; i++) {
+                LED_green_toggle();
+                vTaskDelay(200);
+              }
+              // We have finished accessing the shared resource so can free the
+              // semaphore.
+              if( xSemaphoreGive( xSemBlueTurn ) != pdTRUE )
+              {
+                  // We would not expect this call to fail because we must have
+                  // obtained the semaphore to get here.
+              }
+              vTaskDelay(0);
+          }
+      }
+      
+    }
+}
+//-----------------------------------------------------
+void ToggleBlueTask( void * pvParameters )
+{
+	vTaskSetApplicationTaskTag( NULL, ( void * ) 2 );
+    for( ;; )
+    {
+      if( xSemBlueTurn != NULL )
+      {
+          // Obtain the semaphore - don't block if the semaphore is not
+          // immediately available.
+          if( xSemaphoreTake( xSemBlueTurn, ( TickType_t ) 1900 ) )
+          {
+              // We now have the semaphore and can access the shared resource.
+                for (int i=0; i<10; i++) {
+                  LED_blue_toggle();
+                  vTaskDelay(200);
+                }
+              // We have finished accessing the shared resource so can free the
+              // semaphore.
+              if( xSemaphoreGive( xSemGreenTurn ) != pdTRUE )
+              {
+                  // We would not expect this call to fail because we must have
+                  // obtained the semaphore to get here.
+              }
+              vTaskDelay(0);
+          }
+      }
+    }
+}
+//-----------------------------------------------------
+void ToggleRedTask( void * pvParameters )
+{
+	vTaskSetApplicationTaskTag( NULL, ( void * ) 3 );
+    for( ;; )
+    {
+    LED_red_toggle();
+    for (int i=0; i<100; i++);
+    }
+}
+//-----------------------------------------------------
+void BinaryCounterTask(void * pvParameters)
+{
+  vTaskSetApplicationTaskTag( NULL, ( void * ) 3 );
+  int8_t toggleBlueCounter = 0;
+  int8_t toggleRedCounter = 0;
+  for( ;; )
+    {
+      if( xSemButtonPush!= NULL )
+      {
+          // Obtain the semaphore - don't block if the semaphore is not
+          // immediately available.
+          if( xSemaphoreTake( xSemButtonPush, ( TickType_t ) 500 ) )
+          {
+            // We now have the semaphore and can access the shared resource.
+            toggleBlueCounter++;
+            toggleRedCounter ++;
+            LED_green_toggle();
+            if(toggleBlueCounter>1)
+            {
+              LED_blue_toggle();
+              toggleBlueCounter = 0;
+            }
+            if(toggleRedCounter>3)
+            {
+              LED_red_toggle();
+              toggleRedCounter = 0;
+            }
+            // We have finished accessing the shared resource so can free the
+            // semaphore.
+            vTaskDelay(0);
+          }
+      }
+    }
+}
 
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+   
+  if (GPIO_Pin == USER_Btn_Pin)
+  {
+    uint32_t now = HAL_GetTick();
+    if ((uint32_t)(now - g_lastButtonIrqMs) >= 100U)
+    {
+      g_lastButtonIrqMs = now;
+      xSemaphoreGiveFromISR(xSemButtonPush, &xHigherPriorityTaskWoken);
+      portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    }
+  }
+}
+
+//-----------------------------------------------------
+
+void SetPin( int x, int y ) {
+	HAL_GPIO_WritePin(GPIOE, (1<<(y+11)), GPIO_PIN_SET);
+}
+
+void ResetPin( int x, int y ) {
+	HAL_GPIO_WritePin(GPIOE, (1<<(y+11)), GPIO_PIN_RESET);
+}
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */

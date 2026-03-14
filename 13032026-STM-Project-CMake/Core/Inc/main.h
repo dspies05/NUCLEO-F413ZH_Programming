@@ -93,7 +93,17 @@ void Error_Handler(void);
 #define LD2_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
+#define LED_green_on(); HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_SET);
+#define LED_green_off(); HAL_GPIO_WritePin(GPIOB, GPIO_PIN_0, GPIO_PIN_RESET);
+#define LED_green_toggle(); HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_0);
 
+#define LED_blue_on(); HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_SET);
+#define LED_blue_off(); HAL_GPIO_WritePin(GPIOB, GPIO_PIN_7, GPIO_PIN_RESET);
+#define LED_blue_toggle(); HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_7);
+
+#define LED_red_on(); HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_SET);
+#define LED_red_off(); HAL_GPIO_WritePin(GPIOB, GPIO_PIN_14, GPIO_PIN_RESET);
+#define LED_red_toggle(); HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_14);
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
