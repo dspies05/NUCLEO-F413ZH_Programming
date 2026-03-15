@@ -26,7 +26,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/_types.h>
+#include "portmacro.h"
+#include "projdefs.h"
 #include "semphr.h"
+#include "stm32f4xx_hal_def.h"
 #include "stm32f4xx_hal_gpio.h"
 #include "stm32f4xx_hal_uart.h"
 /* USER CODE END Includes */
@@ -69,11 +72,11 @@ const osThreadAttr_t myTaskTest02_attributes = {
 BaseType_t xReturned;
 TaskHandle_t xHandle = NULL;
 char msg[40];
-SemaphoreHandle_t xSemBlueTurn;
+
+SemaphoreHandle_t xMutexHUART;
+SemaphoreHandle_t xSemYellowTurn;
 SemaphoreHandle_t xSemGreenTurn;
-SemaphoreHandle_t xSemButtonPush;
-QueueHandle_t xLEDQueue;
-volatile uint32_t g_lastButtonIrqMs = 0;
+SemaphoreHandle_t xSemRedTurn;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -85,12 +88,9 @@ void StartDefaultTask(void *argument);
 void StartTaskTest02(void *argument);
 
 /* USER CODE BEGIN PFP */
-void Task0 (void * pvParameters);
-void Task1 (void * pvParameters);
-void ToggleRedTask( void * pvParameters );
-void BinaryCounterTask(void * pvParameters);
-void HUARTPollingTask(void * pvParameters);
-void LEDNotifyTask(void * pvParameters);
+void GreenLedTask(void * pvParameters);
+void YellowLedTask(void * pvParameters);
+void RedLedTask(void * pvParameters);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -130,7 +130,7 @@ int main(void)
   MX_USART3_UART_Init();
   MX_USB_OTG_FS_PCD_Init();
   /* USER CODE BEGIN 2 */
-  int cx = snprintf(msg, 40, "Startup\r\n");
+  int cx = snprintf(msg, 40, "Startup...\r\n");
   if(cx>=0 && cx<100)
   {
     HAL_UART_Transmit(&huart3,(uint8_t *) msg, strlen(msg), 1000);
@@ -141,40 +141,33 @@ int main(void)
   osKernelInitialize();
 
   /* USER CODE BEGIN RTOS_MUTEX */
-  /* add mutexes, ... */
+  xMutexHUART = xSemaphoreCreateMutex();
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   xSemGreenTurn = xSemaphoreCreateBinary();
-  xSemBlueTurn = xSemaphoreCreateBinary();
-  xSemButtonPush = xSemaphoreCreateBinary();
+  xSemYellowTurn = xSemaphoreCreateBinary();
+  xSemRedTurn = xSemaphoreCreateBinary();
   if( xSemGreenTurn == NULL )
-    {
-        sprintf(msg, "Semaphore failed! \r\n");
-        HAL_UART_Transmit(&huart3,(uint8_t *) msg, strlen(msg), 1000);
-    }
-    else
-    {
-        xSemaphoreGive(xSemGreenTurn);
-    }
-  if( xSemBlueTurn == NULL )
-    {
-        sprintf(msg, "Semaphore failed! \r\n");
-        HAL_UART_Transmit(&huart3,(uint8_t *) msg, strlen(msg), 1000);
-    }
-    else
-    {
+  {
+    sprintf(msg, "Green Semaphore failed! \r\n");
+    HAL_UART_Transmit(&huart3,(uint8_t *) msg, strlen(msg), 1000);
+  }
+  else
+  {
+    xSemaphoreGive(xSemGreenTurn);
+  }
+  if( xSemYellowTurn == NULL )
+  {
+    sprintf(msg, "Yellow Semaphore failed! \r\n");
+    HAL_UART_Transmit(&huart3,(uint8_t *) msg, strlen(msg), 1000);
+  }
+  if( xSemRedTurn == NULL )
+  {
+    sprintf(msg, "Red Semaphore failed! \r\n");
+    HAL_UART_Transmit(&huart3,(uint8_t *) msg, strlen(msg), 1000);
+  }
 
-    }
-    if( xSemButtonPush == NULL )
-    {
-        sprintf(msg, "Semaphore failed! \r\n");
-        HAL_UART_Transmit(&huart3,(uint8_t *) msg, strlen(msg), 1000);
-    }
-    else
-    {
-
-    }
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -183,7 +176,6 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
-  xLEDQueue = xQueueCreate( 16, sizeof(unsigned char));
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -194,59 +186,33 @@ int main(void)
   // myTaskTest02Handle = osThreadNew(StartTaskTest02, NULL, &myTaskTest02_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
-  xReturned = xTaskCreate( BinaryCounterTask, "BinaryCounterTask", 256, NULL, 1, &xHandle);
-  if(xReturned == pdPASS){
-    sprintf(msg, "BinaryCounter erfolgreich erstellt! \r\n");
-  }
-  else{
-    sprintf(msg, "BinaryCounter FAILED! \r\n");
-  }
-  HAL_UART_Transmit(&huart3,(uint8_t *) msg, strlen(msg), 1000);
 
-  // xReturned = xTaskCreate( Task0, "Task 01", 256, NULL, 1, &xHandle);
-  // if (xReturned == pdPASS){
-	// sprintf(msg, "T1 erfolgreich erstellt! \r\n");
-  // }
-  // else if (xReturned != pdPASS){
-	// sprintf(msg, "T1 NICHT erstellt! \r\n");
-  // }
-  // HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), 1000);
-
-  // xReturned = xTaskCreate( Task1, "Task 02", 256, NULL, 1, &xHandle);
-  // if (xReturned == pdPASS){
-	// sprintf(msg, "T2 erfolgreich erstellt! \r\n");
-  // }
-  // else if (xReturned != pdPASS){
-	// sprintf(msg, "T2 NICHT erstellt! \r\n");
-  // }
-  // HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), 1000);
-
-  xReturned = xTaskCreate( HUARTPollingTask, "UARTPOLL", 256, NULL, 1, &xHandle);
+  xReturned = xTaskCreate( GreenLedTask, "Green", 256, NULL, 1, &xHandle);
   if (xReturned == pdPASS){
-	sprintf(msg, "UARTPOLL erfolgreich erstellt! \r\n");
+  sprintf(msg, "Green erfolgreich erstellt! \r\n");
   }
   else if (xReturned != pdPASS){
-	sprintf(msg, "UARTPOLL NICHT erstellt! \r\n");
-  }
-  HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), 1000);
-  
-  xReturned = xTaskCreate( LEDNotifyTask, "LEDNotify", 256, NULL, 1, &xHandle);
-  if (xReturned == pdPASS){
-	sprintf(msg, "LEDNotify erfolgreich erstellt! \r\n");
-  }
-  else if (xReturned != pdPASS){
-	sprintf(msg, "LEDNotify NICHT erstellt! \r\n");
+  sprintf(msg, "Green NICHT erstellt! \r\n");
   }
   HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), 1000);
 
-  // xReturned = xTaskCreate( ToggleRedTask, "Task 03", 256, NULL, 1, &xHandle);
-  // if (xReturned == pdPASS){
-	// sprintf(msg, "T3 erfolgreich erstellt! \r\n");
-  // }
-  // else if (xReturned != pdPASS){
-	// sprintf(msg, "T3 NICHT erstellt! \r\n");
-  // }
-  // HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), 1000);
+  xReturned = xTaskCreate( YellowLedTask, "Yellow", 256, NULL, 1, &xHandle);
+  if (xReturned == pdPASS){
+  sprintf(msg, "Yellow erfolgreich erstellt! \r\n");
+  }
+  else if (xReturned != pdPASS){
+  sprintf(msg, "Yellow NICHT erstellt! \r\n");
+  }
+  HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), 1000);
+
+  xReturned = xTaskCreate( RedLedTask, "Red", 256, NULL, 1, &xHandle);
+  if (xReturned == pdPASS){
+  sprintf(msg, "Red erfolgreich erstellt! \r\n");
+  }
+  else if (xReturned != pdPASS){
+  sprintf(msg, "Red NICHT erstellt! \r\n");
+  }
+  HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), 1000);
 
   /* USER CODE END RTOS_THREADS */
   
@@ -449,126 +415,88 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(USB_OverCurrent_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
-  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
+
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
-void Task0 (void * pvParameters)
+void GreenLedTask (void * pvParameters)
 {
+  const char * greenStatus = "Ampel Zustand: Grün\r\n";
+  const char * greenBlinkStatus = "Ampel Zustand: Grün blinkend\r\n";
+  const TickType_t blinkDuration = pdMS_TO_TICKS(2000);
+  TickType_t blinkStart;
   vTaskSetApplicationTaskTag( NULL, ( void * ) 1 );
-  for(;;);
-}
-
-void Task1 (void * pvParameters)
-{
-  vTaskSetApplicationTaskTag( NULL, ( void * ) 2);
-  for(;;);
-}
-
-//-----------------------------------------------------
-void ToggleRedTask( void * pvParameters )
-{
-	vTaskSetApplicationTaskTag( NULL, ( void * ) 3 );
-    for( ;; )
-    {
-    LED_red_toggle();
-    for (int i=0; i<100; i++);
-    }
-}
-//-----------------------------------------------------
-void BinaryCounterTask(void * pvParameters)
-{
-  vTaskSetApplicationTaskTag( NULL, ( void * ) 3 );
-  int8_t toggleBlueCounter = 0;
-  int8_t toggleRedCounter = 0;
-  for( ;; )
-    {
-      if( xSemButtonPush!= NULL )
-      {
-          // Obtain the semaphore - don't block if the semaphore is not
-          // immediately available.
-          if( xSemaphoreTake( xSemButtonPush, ( TickType_t ) 500 ) )
-          {
-            // We now have the semaphore and can access the shared resource.
-            toggleBlueCounter++;
-            toggleRedCounter ++;
-            LED_green_toggle();
-            if(toggleBlueCounter>1)
-            {
-              LED_blue_toggle();
-              toggleBlueCounter = 0;
-            }
-            if(toggleRedCounter>3)
-            {
-              LED_red_toggle();
-              toggleRedCounter = 0;
-            }
-            // We have finished accessing the shared resource so can free the
-            // semaphore.
-            vTaskDelay(0);
-          }
-      }
-    }
-}
-void LEDNotifyTask(void * pvParameters){
-  vTaskSetApplicationTaskTag( NULL, ( void * ) 2 );
-  uint8_t c;
-  char buff[40];
-  int i = 0;
-  for(;;){
-    for (i = 0; i<40 && c!='\n'; i++) {
-      if(xQueueReceive(xLEDQueue, &c, 2000)){
-        buff[i] = c;
-      // if (strcmp(led, "red") != 0) {
-      
-      // }
-      // else if(strcmp(led, "blue") != 0){
-
-      // }
-      // else if(strcmp(led, "green") != 0){
-        
-      // }
-      }
-    }
-    if(c=='\n'){
-        HAL_UART_Transmit(&huart3,  (uint8_t *)buff , i, 1);
-        c = '0';
-        xQueueReset(xLEDQueue);
-      }
-  }
-}
-
-void HUARTPollingTask(void * pvParameters){
-  vTaskSetApplicationTaskTag( NULL, ( void * ) 1 );
-  uint8_t c;
-  HAL_StatusTypeDef status;
-  for(;;){
-    status = HAL_UART_Receive(&huart3, &c, sizeof(c), 0);
-    if(status == HAL_OK){
-      xQueueSend(xLEDQueue, &c, 0);
-    }
-  }
-}
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
-   
-  if (GPIO_Pin == USER_Btn_Pin)
+  for(;;)
   {
-    __disable_irq();
-    uint32_t now = HAL_GetTick();
-    if ((uint32_t)(now - g_lastButtonIrqMs) >= 200U)
-    {
-      g_lastButtonIrqMs = now;
-      xSemaphoreGiveFromISR(xSemButtonPush, &xHigherPriorityTaskWoken);
-      portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
+    if(xSemaphoreTake(xSemGreenTurn, portMAX_DELAY)){
+      if(xSemaphoreTake(xMutexHUART, 2000)){
+        HAL_UART_Transmit(&huart3, (uint8_t *) greenStatus, strlen(greenStatus), 1000);
+        xSemaphoreGive(xMutexHUART);
+      }
+      LED_green_on();
+      vTaskDelay(pdMS_TO_TICKS(4000));
+      LED_green_off();
+
+      if(xSemaphoreTake(xMutexHUART, 2000)){
+        HAL_UART_Transmit(&huart3, (uint8_t *) greenBlinkStatus, strlen(greenBlinkStatus), 1000);
+        xSemaphoreGive(xMutexHUART);
+      }
+      blinkStart = xTaskGetTickCount();
+      while ((xTaskGetTickCount() - blinkStart) < blinkDuration) {
+        LED_green_toggle();
+        vTaskDelay(pdMS_TO_TICKS(400));
+      }
+      LED_green_off();
+
+      xSemaphoreGive(xSemYellowTurn);
     }
-    __enable_irq();
   }
 }
+
+void YellowLedTask (void * pvParameters)
+{
+  const char * yellowStatus = "Ampel Zustand: Gelb\r\n";
+  vTaskSetApplicationTaskTag( NULL, ( void * ) 2);
+  for(;;)
+  {
+    if(xSemaphoreTake(xSemYellowTurn, portMAX_DELAY)){
+      if(xSemaphoreTake(xMutexHUART, 2000)){
+        HAL_UART_Transmit(&huart3, (uint8_t *) yellowStatus, strlen(yellowStatus), 1000);
+        xSemaphoreGive(xMutexHUART);
+      }
+
+      LED_blue_on();
+      vTaskDelay(pdMS_TO_TICKS(2000));
+      LED_blue_off();
+      xSemaphoreGive(xSemRedTurn);
+    }
+  }
+}
+
+void RedLedTask (void * pvParameters)
+{
+  const char * redStatus = "Ampel Zustand: Rot\r\n";
+  vTaskSetApplicationTaskTag( NULL, ( void * ) 3);
+  for(;;)
+  {
+    if(xSemaphoreTake(xSemRedTurn, portMAX_DELAY)){
+      if(xSemaphoreTake(xMutexHUART, 2000)){
+        HAL_UART_Transmit(&huart3, (uint8_t *)redStatus , strlen(redStatus) , 1000);
+        xSemaphoreGive(xMutexHUART);
+      }
+      
+      LED_red_on();
+      vTaskDelay(pdMS_TO_TICKS(6000));
+      LED_red_off();
+      
+      xSemaphoreGive(xSemGreenTurn);
+    }
+  }
+}
+
+
+
 
 //-----------------------------------------------------
 
