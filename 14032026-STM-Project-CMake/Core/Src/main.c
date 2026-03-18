@@ -183,7 +183,7 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
-  xLEDQueue = xQueueCreate( 16, sizeof(unsigned char));
+  xLEDQueue = xQueueCreate(64, sizeof(unsigned char));
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -489,7 +489,7 @@ void BinaryCounterTask(void * pvParameters)
       {
           // Obtain the semaphore - don't block if the semaphore is not
           // immediately available.
-          if( xSemaphoreTake( xSemButtonPush, ( TickType_t ) 500 ) )
+          if( xSemaphoreTake( xSemButtonPush, portMAX_DELAY) )
           {
             // We now have the semaphore and can access the shared resource.
             toggleBlueCounter++;
@@ -515,28 +515,32 @@ void BinaryCounterTask(void * pvParameters)
 void LEDNotifyTask(void * pvParameters){
   vTaskSetApplicationTaskTag( NULL, ( void * ) 2 );
   uint8_t c;
-  char buff[40];
-  int i = 0;
+  uint8_t lineBuffer[64];
+  size_t idx = 0;
   for(;;){
-    for (i = 0; i<40 && c!='\n'; i++) {
-      if(xQueueReceive(xLEDQueue, &c, 2000)){
-        buff[i] = c;
-      // if (strcmp(led, "red") != 0) {
-      
-      // }
-      // else if(strcmp(led, "blue") != 0){
+    if(xQueueReceive(xLEDQueue, &c, portMAX_DELAY) == pdTRUE){
+      if (c == '\r') {
+        continue;
+      }
 
-      // }
-      // else if(strcmp(led, "green") != 0){
-        
-      // }
+      if (c == '\n') {
+        if (idx < sizeof(lineBuffer) - 1U) {
+          lineBuffer[idx++] = '\n';
+        }
+        if (idx > 0U) {
+          HAL_UART_Transmit(&huart3, lineBuffer, idx, 1000);
+        }
+        idx = 0;
+      } else {
+        if (idx < sizeof(lineBuffer)) {
+          lineBuffer[idx++] = c;
+        } else {
+          HAL_UART_Transmit(&huart3, lineBuffer, idx, 1000);
+          idx = 0;
+          lineBuffer[idx++] = c;
+        }
       }
     }
-    if(c=='\n'){
-        HAL_UART_Transmit(&huart3,  (uint8_t *)buff , i, 1);
-        c = '0';
-        xQueueReset(xLEDQueue);
-      }
   }
 }
 
@@ -545,9 +549,9 @@ void HUARTPollingTask(void * pvParameters){
   uint8_t c;
   HAL_StatusTypeDef status;
   for(;;){
-    status = HAL_UART_Receive(&huart3, &c, sizeof(c), 0);
+    status = HAL_UART_Receive(&huart3, &c, 1, HAL_MAX_DELAY);
     if(status == HAL_OK){
-      xQueueSend(xLEDQueue, &c, 0);
+      (void)xQueueSend(xLEDQueue, &c, portMAX_DELAY);
     }
   }
 }
